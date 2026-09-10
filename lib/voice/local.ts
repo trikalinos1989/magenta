@@ -18,13 +18,14 @@ export interface LocalVoiceConversionResult {
 }
 
 /**
- * Voice conversion via local FastAPI.
- * Prefers Seed-VC when the local-ai server detects ./seed-vc; else MVP pitch+envelope.
+ * Voice conversion via local FastAPI (Seed-VC when ready, else MVP).
  */
 export async function convertVoiceLocal(
   input: LocalVoiceConversionInput
 ): Promise<LocalVoiceConversionResult> {
-  input.onLog?.("Τοπική μετατροπή φωνής (Seed-VC αν είναι διαθέσιμο, αλλιώς MVP)…");
+  input.onLog?.(
+    "Τοπική μετατροπή φωνής (Seed-VC αν είναι διαθέσιμο — αργό στο CPU)…"
+  );
 
   const src = await fs.readFile(input.sourceVocalPath);
   const ref = await fs.readFile(input.referenceAudioPath);
@@ -41,10 +42,24 @@ export async function convertVoiceLocal(
   );
   form.append("pitch", String(input.pitch ?? 0));
 
-  const res = await fetch(`${LOCAL_AI_URL}/convert`, {
-    method: "POST",
-    body: form,
-  });
+  let res: Response;
+  try {
+    // First Seed-VC run downloads multi-GB weights; CPU inference is very slow.
+    res = await fetch(`${LOCAL_AI_URL}/convert`, {
+      method: "POST",
+      body: form,
+      signal: AbortSignal.timeout(3 * 60 * 60 * 1000),
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/abort|timeout|fetch failed/i.test(msg)) {
+      throw new Error(
+        "Η τοπική μετατροπή κόπηκε (timeout/σύνδεση). Κράτα ανοιχτό το local-ai (port 8765). " +
+          "Η πρώτη φορά κατεβάζει μοντέλα HuggingFace και στο AMD/CPU μπορεί να πάρει πολύ ώρα."
+      );
+    }
+    throw err;
+  }
 
   if (!res.ok) {
     let detail = `HTTP ${res.status}`;
@@ -72,28 +87,15 @@ export async function convertVoiceLocal(
   const convertedPath = path.join(input.outDir, "converted_vocal.wav");
   await fs.writeFile(convertedPath, Buffer.from(data.converted_b64, "base64"));
 
-  const mode = data.mode || "mvp-pitch";
-  const isSeed =
-    mode === "seed-vc" || mode === "seedvc" || mode.startsWith("seed");
-
-  if (isSeed) {
-    input.onLog?.(
-      "Seed-VC: νευρωνική μετατροπή φωνής (τραγούδι / f0-condition). Στο CPU είναι πολύ αργό — κανονικό."
-    );
-  } else {
-    input.onLog?.(
-      "Τοπική μετατροπή φωνής (MVP CPU — όχι ποιότητα Seed-VC/FreeVC/RVC)…"
-    );
-  }
-
   if (data.quality_note) {
     input.onLog?.(data.quality_note);
   }
 
+  const isSeed = (data.mode || "").includes("seed") || data.provider === "local-seedvc";
   return {
     convertedPath,
     provider: isSeed ? "local-seedvc" : "local-mvp",
-    model: mode,
+    model: data.mode || "mvp-pitch",
     raw: data,
   };
 }

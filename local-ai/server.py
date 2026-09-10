@@ -11,6 +11,7 @@ Imports cleanly even before models are downloaded (heavy work is lazy).
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import uuid
 from pathlib import Path
@@ -104,7 +105,7 @@ async def stems(audio: UploadFile = File(...)):
             raise HTTPException(status_code=400, detail="Κενό αρχείο ήχου.")
         in_path.write_bytes(data)
 
-        result = vc.separate_stems_demucs(in_path, job_dir)
+        result = await asyncio.to_thread(vc.separate_stems_demucs, in_path, job_dir)
         vocals_path = Path(result["vocals_path"])
         instrumental_path = Path(result["instrumental_path"])
 
@@ -162,11 +163,12 @@ async def convert(
         ref_path.write_bytes(ref_bytes)
 
         pitch_val = float(pitch or 0)
-        result = vc.convert(
+        result = await asyncio.to_thread(
+            vc.convert,
             src_path,
             ref_path,
             out_path,
-            pitch_semitones=pitch_val,
+            pitch_val,
         )
         converted = Path(result["path"])
         return JSONResponse(

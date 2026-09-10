@@ -24,6 +24,7 @@ export async function separateStemsLocal(opts: {
   const res = await fetch(`${LOCAL_AI_URL}/stems`, {
     method: "POST",
     body: form,
+    signal: AbortSignal.timeout(60 * 60 * 1000),
   });
 
   if (!res.ok) {
