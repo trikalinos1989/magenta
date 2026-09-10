@@ -91,30 +91,43 @@ export async function separateStems(opts: {
 }): Promise<StemResult> {
   opts.onLog?.("Εκκίνηση Demucs στο Replicate…");
 
+  // Match live ryan5453/demucs OpenAPI schema (no stem/shifts fields).
   const input = {
     audio: openReadStream(opts.songPath) as unknown as string,
     model: "htdemucs",
-    stem: "none",
     output_format: "wav",
-    shifts: 1,
+    clip_mode: "rescale",
   };
 
   let output: unknown;
   try {
+    // Prefer version id form used by /v1/predictions (more reliable than models/.../predictions)
     output = await runReplicate(
       `${DEMUCS_MODEL}:${DEMUCS_VERSION}` as `${string}/${string}:${string}`,
       { input }
     );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (/429|Too Many Requests|throttled|rate limit|περιορίσε/i.test(msg)) {
+    if (
+      /429|Too Many Requests|throttled|rate limit|περιορίσε|402|insufficient credit|credit/i.test(
+        msg
+      )
+    ) {
       throw err;
     }
-    // Fallback to latest model ref without pin
-    opts.onLog?.("Επανάληψη χωρίς pin έκδοσης…");
-    output = await runReplicate(DEMUCS_MODEL as `${string}/${string}`, {
-      input,
-    });
+    // Fallback: alternate public Demucs port
+    opts.onLog?.("Επανάληψη με cjwbw/demucs…");
+    output = await runReplicate(
+      "cjwbw/demucs" as `${string}/${string}`,
+      {
+        input: {
+          audio: input.audio,
+          model_name: "htdemucs",
+          output_format: "wav",
+          clip_mode: "rescale",
+        },
+      }
+    );
   }
 
   const urls = collectUrls(output);

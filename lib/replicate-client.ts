@@ -57,5 +57,15 @@ export async function runReplicate(
       "Το Replicate περιόρισε τα αιτήματα (429). Χωρίς payment method το όριο είναι ~6/λεπτό. Περίμενε λίγα δευτερόλεπτα και ξαναδοκίμασε, ή πρόσθεσε κάρτα στο replicate.com/account/billing."
     );
   }
+  if (/402|insufficient credit|purchase credit/i.test(msg)) {
+    throw new Error(
+      "Το Replicate δεν έχει διαθέσιμο credit για αυτό το μοντέλο (402). Το FONI MOU είναι δωρεάν, αλλά το Demucs/FreeVC τρέχει στο cloud του Replicate και χρεώνει GPU. Πήγαινε στο https://replicate.com/account/billing και πρόσθεσε credit (ή κάρτα). Μετά περίμενε 1–2 λεπτά και ξαναδοκίμασε."
+    );
+  }
+  if (/404|could not be found/i.test(msg)) {
+    throw new Error(
+      "Το Replicate δεν βρήκε το μοντέλο ή την έκδοση (404). Αν μόλις πρόσθεσες κάρτα/credit, περίμενε λίγο. Αλλιώς δοκίμασε ξανά — συχνά κρύβει πρόβλημα billing πίσω από 404."
+    );
+  }
   throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
