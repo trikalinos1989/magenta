@@ -123,6 +123,8 @@ export async function validateAudioFile(
     label: string;
     minDurationSec?: number;
     maxDurationSec?: number;
+    /** voice: strict clipping errors. song: mastered mixes often peak ~0 dB — warn only. */
+    kind?: "voice" | "song";
   }
 ): Promise<AudioValidationResult> {
   const errors: string[] = [];
@@ -174,12 +176,20 @@ export async function validateAudioFile(
     );
   }
 
-  // Clipping
+  // Clipping — strict for voice samples; songs/mastered mixes often peak at 0 dB.
+  const kind = opts.kind ?? "voice";
   if (volumes.peakDb >= -0.2) {
-    errors.push(
-      `Το αρχείο «${opts.label}» έχει clipping (κορεσμό). Μειώστε την ένταση εγγραφής και ξαναδοκιμάστε.`
-    );
-  } else if (volumes.peakDb >= -1.0) {
+    const msg = `Το αρχείο «${opts.label}» έχει πολύ υψηλή κορυφή (peak ${volumes.peakDb.toFixed(1)} dB).`;
+    if (kind === "song") {
+      warnings.push(
+        `${msg} Σε mastered τραγούδια είναι συχνά φυσιολογικό — συνεχίζουμε. Αν ακούγεται στρεβλωμένο, κατεβάστε λίγο την ένταση.`
+      );
+    } else {
+      errors.push(
+        `Το αρχείο «${opts.label}» έχει clipping (κορεσμό). Μειώστε την ένταση εγγραφής και ξαναδοκιμάστε.`
+      );
+    }
+  } else if (volumes.peakDb >= -1.0 && kind !== "song") {
     warnings.push(
       `Το αρχείο «${opts.label}» είναι κοντά στο clipping. Προτιμήστε λίγο χαμηλότερη ένταση.`
     );
@@ -218,6 +228,7 @@ export async function validateVoiceSamples(
       label: filenames[i] || `δείγμα ${i + 1}`,
       minDurationSec: 1,
       maxDurationSec: 300,
+      kind: "voice",
     });
     errors.push(...r.errors);
     warnings.push(...r.warnings);

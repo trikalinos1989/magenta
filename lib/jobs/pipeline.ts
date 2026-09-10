@@ -83,6 +83,7 @@ export async function runJobPipeline(jobId: string): Promise<void> {
       label: "τραγούδι",
       minDurationSec: 3,
       maxDurationSec: 60 * 12,
+      kind: "song",
     });
     if (!songCheck.ok) {
       setStep(jobId, "failed", 0, {
