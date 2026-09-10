@@ -12,20 +12,19 @@ export interface LocalVoiceConversionInput {
 
 export interface LocalVoiceConversionResult {
   convertedPath: string;
-  provider: "local-mvp";
+  provider: "local-mvp" | "local-seedvc";
   model: string;
   raw: unknown;
 }
 
 /**
- * Voice conversion via local FastAPI (MVP pitch+envelope on CPU by default).
+ * Voice conversion via local FastAPI.
+ * Prefers Seed-VC when the local-ai server detects ./seed-vc; else MVP pitch+envelope.
  */
 export async function convertVoiceLocal(
   input: LocalVoiceConversionInput
 ): Promise<LocalVoiceConversionResult> {
-  input.onLog?.(
-    "Τοπική μετατροπή φωνής (MVP CPU — όχι ποιότητα FreeVC/RVC)…"
-  );
+  input.onLog?.("Τοπική μετατροπή φωνής (Seed-VC αν είναι διαθέσιμο, αλλιώς MVP)…");
 
   const src = await fs.readFile(input.sourceVocalPath);
   const ref = await fs.readFile(input.referenceAudioPath);
@@ -62,6 +61,7 @@ export async function convertVoiceLocal(
     converted_b64?: string;
     mode?: string;
     quality_note?: string;
+    provider?: string;
   };
 
   if (!data.converted_b64) {
@@ -72,14 +72,28 @@ export async function convertVoiceLocal(
   const convertedPath = path.join(input.outDir, "converted_vocal.wav");
   await fs.writeFile(convertedPath, Buffer.from(data.converted_b64, "base64"));
 
+  const mode = data.mode || "mvp-pitch";
+  const isSeed =
+    mode === "seed-vc" || mode === "seedvc" || mode.startsWith("seed");
+
+  if (isSeed) {
+    input.onLog?.(
+      "Seed-VC: νευρωνική μετατροπή φωνής (τραγούδι / f0-condition). Στο CPU είναι πολύ αργό — κανονικό."
+    );
+  } else {
+    input.onLog?.(
+      "Τοπική μετατροπή φωνής (MVP CPU — όχι ποιότητα Seed-VC/FreeVC/RVC)…"
+    );
+  }
+
   if (data.quality_note) {
     input.onLog?.(data.quality_note);
   }
 
   return {
     convertedPath,
-    provider: "local-mvp",
-    model: data.mode || "mvp-pitch",
+    provider: isSeed ? "local-seedvc" : "local-mvp",
+    model: mode,
     raw: data,
   };
 }

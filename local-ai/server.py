@@ -25,7 +25,7 @@ import vc
 app = FastAPI(
     title="FONI MOU Local AI",
     version="0.1.0",
-    description="CPU-first local Demucs + MVP voice conversion for FONI MOU",
+    description="CPU-first local Demucs + Seed-VC (or MVP) voice conversion for FONI MOU",
 )
 
 app.add_middleware(
@@ -51,16 +51,31 @@ def _file_b64(path: Path) -> str:
 @app.get("/health")
 def health():
     device = vc.detect_device()
+    seedvc = vc.seedvc_ready()
+    if seedvc:
+        vc_mode = "seed-vc"
+        quality_note = (
+            "Demucs stems are real (CPU). Voice convert uses Seed-VC when ready "
+            "(neural VC; very slow on CPU/AMD, no CUDA). "
+            "FONI_VC_BACKEND=auto|seedvc|mvp. AMD RX 7900 XT: no CUDA."
+        )
+    else:
+        vc_mode = "mvp-pitch"
+        quality_note = (
+            "Demucs stems are real (CPU). Voice convert is MVP pitch+envelope "
+            "(Seed-VC not detected under ./seed-vc). "
+            "Clone Plachtaa/seed-vc into local-ai/seed-vc and create .venv. "
+            "AMD RX 7900 XT: no CUDA."
+        )
     return {
         "ok": True,
         "device": device,
         "demucs_ready": vc.demucs_ready(),
         "vc_ready": vc.vc_ready(),
-        "vc_mode": "mvp-pitch",
-        "quality_note": (
-            "Demucs stems are real (CPU). Voice convert is MVP pitch+envelope "
-            "unless Seed-VC/RVC is installed separately. AMD RX 7900 XT: no CUDA."
-        ),
+        "seedvc_ready": seedvc,
+        "vc_mode": vc_mode,
+        "seed_vc_root": str(vc.seedvc_root()),
+        "quality_note": quality_note,
     }
 
 
@@ -164,7 +179,11 @@ async def convert(
                 "sample_rate": result.get("sample_rate"),
                 "mode": result.get("mode"),
                 "device": result.get("device"),
-                "provider": "local-mvp",
+                "provider": (
+                    "local-seedvc"
+                    if str(result.get("mode") or "").startswith("seed")
+                    else "local-mvp"
+                ),
                 "quality_note": result.get("quality_note"),
                 "pitch_semitones": pitch_val,
             }

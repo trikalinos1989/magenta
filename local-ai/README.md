@@ -57,15 +57,27 @@ npm run dev:local
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/health` | `{ ok, device, demucs_ready, vc_ready }` |
+| GET | `/health` | `{ ok, device, demucs_ready, vc_ready, seedvc_ready, vc_mode }` |
 | POST | `/stems` | multipart field `audio` → vocals + instrumental (base64 WAV) |
 | POST | `/convert` | `source_vocal`, `reference_audio`, optional `pitch` → converted WAV |
 
 ### Voice conversion quality (honest)
 
-- **Stems (Demucs):** real neural separation on CPU.
-- **Convert (default):** MVP labeled `mvp-pitch` — librosa pitch shift + light spectral envelope from your reference. **Not** FreeVC / Seed-VC / RVC quality.
-- Full Seed-VC is optional and heavy; prefers NVIDIA. Not required for this MVP.
+- **Stems (Demucs):** real neural separation on CPU (Separator API).
+- **Convert:** `FONI_VC_BACKEND=auto` (default) tries **Seed-VC** first when `./seed-vc` + `.venv` exist, else MVP `mvp-pitch`.
+- **Seed-VC setup (Windows):**
+  ```bat
+  cd local-ai
+  git clone https://github.com/Plachtaa/seed-vc seed-vc
+  cd seed-vc
+  py -3.11 -m venv .venv
+  .venv\Scripts\activate
+  pip install -r requirements.txt
+  ```
+  Optional: set `SEED_VC_ROOT` if the clone lives elsewhere. Helper: `run_seedvc_infer.py`.
+- Seed-VC on CPU/AMD (no CUDA) is **real but very slow**. First run downloads HF checkpoints.
+- Force backends: `FONI_VC_BACKEND=seedvc` (error if missing) or `mvp`.
+- `/health` reports `vc_mode` (`seed-vc` | `mvp-pitch`) and `seedvc_ready`.
 - We never invent fake “success” audio without running the pipeline.
 
 ### Ports
@@ -103,7 +115,8 @@ AI_PROVIDER=local
 ### Ποιότητα
 
 - Ο διαχωρισμός φωνής/οργανικού (Demucs) είναι **πραγματικός**.
-- Η τοπική μετατροπή φωνής είναι **MVP** (pitch + ελαφρύ envelope) — όχι ποιότητα RVC/FreeVC.
+- Η μετατροπή φωνής προτιμά **Seed-VC** αν υπάρχει `local-ai\seed-vc` με `.venv`· αλλιώς MVP (pitch + envelope).
+- Στο CPU/AMD το Seed-VC είναι **πολύ αργό** αλλά πραγματικό. `FONI_VC_BACKEND=auto|seedvc|mvp`.
 - Χωρίς μοντέλα / χωρίς server → καθαρό σφάλμα, **όχι** ψεύτικα αρχεία ήχου.
 
 ### Αντιμετώπιση προβλημάτων

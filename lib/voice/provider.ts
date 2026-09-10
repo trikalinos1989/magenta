@@ -40,7 +40,7 @@ export interface VoiceConversionInput {
 
 export interface VoiceConversionResult {
   convertedPath: string;
-  provider: "free-vc" | "rvc-custom" | "local-mvp";
+  provider: "free-vc" | "rvc-custom" | "local-mvp" | "local-seedvc";
   model: string;
   raw: unknown;
 }
