@@ -260,65 +260,50 @@ def separate_stems_demucs(
     model_name: str = "htdemucs",
 ) -> dict[str, Any]:
     """
-    Real Demucs two-stems (vocals / no_vocals) on CPU (or CUDA if somehow present).
-    Downloads pretrained weights on first run via demucs.pretrained.
+    Real Demucs two-stems (vocals / instrumental) on CPU (or CUDA if present).
+    Uses demucs 4.x Separator API (load_track was removed).
+    Downloads pretrained weights on first run.
     """
-    import torch
-    from demucs.apply import apply_model
     from demucs.audio import save_audio
-    from demucs.pretrained import get_model
-    from demucs.separate import load_track
+    from demucs.separate import Separator
 
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     device_str = detect_device()
-    device = torch.device("cuda" if device_str == "cuda" else "cpu")
+    # AMD / no CUDA → force cpu (DirectML not wired into Demucs yet)
+    device = "cuda" if device_str == "cuda" else "cpu"
 
-    model = get_model(model_name)
-    model.to(device)
-    model.eval()
+    separator = Separator(
+        model=model_name,
+        device=device,
+        shifts=1,
+        overlap=0.25,
+        split=True,
+        progress=False,
+    )
 
-    wav = load_track(str(audio_path), model.audio_channels, model.samplerate)
-    ref = wav.mean(0)
-    wav = (wav - ref.mean()) / (ref.std() + 1e-8)
+    _orig, stems = separator.separate_audio_file(Path(audio_path))
+    # stems: dict[str, Tensor] e.g. drums/bass/other/vocals
 
-    with torch.no_grad():
-        sources = apply_model(
-            model,
-            wav[None],
-            device=device,
-            shifts=1,
-            split=True,
-            overlap=0.25,
-            progress=False,
-        )[0]
+    if "vocals" not in stems:
+        raise RuntimeError(f"Demucs stems missing vocals: {list(stems.keys())}")
 
-    # sources order from htdemucs: drums, bass, other, vocals (typical)
-    names = list(model.sources)
-    source_map = {name: sources[i] for i, name in enumerate(names)}
-
-    if "vocals" not in source_map:
-        raise RuntimeError(f"Demucs model sources missing vocals: {names}")
-
-    vocals = source_map["vocals"]
-    # two-stems style instrumental = sum of non-vocals
-    instrumental = sum(source_map[n] for n in names if n != "vocals")
-
-    # undo normalize
-    vocals = vocals * (ref.std() + 1e-8) + ref.mean()
-    instrumental = instrumental * (ref.std() + 1e-8) + ref.mean()
+    vocals = stems["vocals"]
+    instrumental = sum(wav for name, wav in stems.items() if name != "vocals")
 
     vocals_path = out_dir / "vocals.wav"
     instrumental_path = out_dir / "instrumental.wav"
-    save_audio(vocals, str(vocals_path), model.samplerate)
-    save_audio(instrumental, str(instrumental_path), model.samplerate)
+    sr = separator.samplerate
+    save_audio(vocals.cpu(), str(vocals_path), sr)
+    save_audio(instrumental.cpu(), str(instrumental_path), sr)
 
     return {
         "vocals_path": str(vocals_path),
         "instrumental_path": str(instrumental_path),
-        "sample_rate": model.samplerate,
+        "sample_rate": sr,
         "model": model_name,
         "device": device_str,
         "mode": "demucs-two-stems",
+        "stem_names": list(stems.keys()),
     }
