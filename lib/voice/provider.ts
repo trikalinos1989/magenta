@@ -2,11 +2,13 @@ import path from "path";
 import { runReplicate } from "@/lib/replicate-client";
 import { downloadToFile, openReadStream } from "@/lib/storage";
 import { ffmpegBin } from "@/lib/audio/binaries";
+import { convertVoiceLocal } from "@/lib/voice/local";
 
 /**
  * Voice conversion provider abstraction.
  *
- * Prefer zero-shot / reference-audio VC on Replicate (FreeVC).
+ * Prefer local FastAPI when AI_PROVIDER=local/auto and health OK.
+ * Else zero-shot / reference-audio VC on Replicate (FreeVC).
  * Fallback: zsxkib/realistic-voice-cloning only when a custom RVC .zip/.pth URL
  * is provided (requires a trained RVC model — not invented locally).
  */
@@ -31,12 +33,14 @@ export interface VoiceConversionInput {
   indexRate?: number; // 0..1 (RVC)
   protect?: number; // 0..0.5 (RVC)
   customRvcModelUrl?: string;
+  /** Force backend; if omitted, caller/pipeline decides */
+  preferLocal?: boolean;
   onLog?: (msg: string) => void;
 }
 
 export interface VoiceConversionResult {
   convertedPath: string;
-  provider: "free-vc" | "rvc-custom";
+  provider: "free-vc" | "rvc-custom" | "local-mvp";
   model: string;
   raw: unknown;
 }
@@ -247,6 +251,22 @@ export async function applyPitchShift(
 export async function convertVoice(
   input: VoiceConversionInput
 ): Promise<VoiceConversionResult> {
+  if (input.preferLocal) {
+    const local = await convertVoiceLocal({
+      sourceVocalPath: input.sourceVocalPath,
+      referenceAudioPath: input.referenceAudioPath,
+      outDir: input.outDir,
+      pitch: input.pitch,
+      onLog: input.onLog,
+    });
+    return {
+      convertedPath: local.convertedPath,
+      provider: local.provider,
+      model: local.model,
+      raw: local.raw,
+    };
+  }
+
   if (input.customRvcModelUrl?.trim()) {
     return runCustomRvc(input);
   }

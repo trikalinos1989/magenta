@@ -9,6 +9,7 @@ import { jobDir, jobPath, downloadToFile } from "@/lib/storage";
 import { separateStems } from "@/lib/stems/demucs";
 import { convertVoice } from "@/lib/voice/provider";
 import { isReplicateConfigured } from "@/lib/replicate-client";
+import { resolveAiProvider } from "@/lib/ai/local";
 
 function assertNotCanceled(jobId: string) {
   const job = getJob(jobId);
@@ -32,10 +33,29 @@ export async function runJobPipeline(jobId: string): Promise<void> {
   if (!job) return;
 
   try {
-    if (!isReplicateConfigured()) {
+    let useLocal = false;
+    try {
+      const resolved = await resolveAiProvider();
+      useLocal = resolved.provider === "local";
+      updateJob(jobId, {
+        stepLabel: useLocal
+          ? `Τοπική AI (${resolved.local.device || "cpu"})`
+          : "Replicate cloud",
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setStep(jobId, "failed", 0, {
+        error: msg,
+        finishedAt: new Date().toISOString(),
+      });
+      return;
+    }
+
+    if (!useLocal && !isReplicateConfigured()) {
       setStep(jobId, "failed", 0, {
         error:
-          "Λείπει το REPLICATE_API_TOKEN. Προσθέστε το στο .env.local και επανεκκινήστε τον server.",
+          "Δεν υπάρχει τοπική AI (http://127.0.0.1:8765) ούτε REPLICATE_API_TOKEN. " +
+          "Ξεκινήστε το local-ai\\start.bat ή προσθέστε token στο .env.local.",
         finishedAt: new Date().toISOString(),
       });
       return;
@@ -119,6 +139,7 @@ export async function runJobPipeline(jobId: string): Promise<void> {
       const stems = await separateStems({
         songPath,
         outDir: dir,
+        preferLocal: useLocal,
         onLog: (msg) =>
           updateJob(jobId, {
             stepLabel: `Διαχωρισμός: ${msg}`,
@@ -147,7 +168,8 @@ export async function runJobPipeline(jobId: string): Promise<void> {
       pitch: job.params.pitch,
       indexRate: job.params.indexRate,
       protect: job.params.protect,
-      customRvcModelUrl: job.params.customRvcModelUrl,
+      customRvcModelUrl: useLocal ? undefined : job.params.customRvcModelUrl,
+      preferLocal: useLocal,
       onLog: (msg) =>
         updateJob(jobId, {
           stepLabel: `Μετατροπή: ${msg}`,

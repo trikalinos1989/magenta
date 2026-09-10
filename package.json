@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "local-ai": "cd local-ai && python -m uvicorn server:app --host 127.0.0.1 --port 8765",
+    "dev:local": "echo \"[FONI MOU] Start Local AI first: Windows → local-ai\\\\start.bat  |  or: npm run local-ai\" && next dev"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.3.11",
@@ -37,5 +39,5 @@
     "tailwindcss": "^4",
     "typescript": "^5"
   },
-  "description": "FONI MOU — Η Φωνή Μου: voice-conversion cover studio (Replicate + ffmpeg)"
+  "description": "FONI MOU — Η Φωνή Μου: voice-conversion cover studio (local AI + optional Replicate)"
 }

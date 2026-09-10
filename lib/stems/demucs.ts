@@ -3,9 +3,11 @@ import path from "path";
 import { runReplicate } from "@/lib/replicate-client";
 import { downloadToFile, openReadStream } from "@/lib/storage";
 import { ffmpegBin } from "@/lib/audio/binaries";
+import { separateStemsLocal } from "@/lib/stems/local";
 
 /**
- * Vocal separation via Replicate Demucs (ryan5453/demucs).
+ * Vocal separation via Replicate Demucs (ryan5453/demucs)
+ * or local FastAPI Demucs when preferLocal is set.
  * Version pinned with owner/name fallback.
  */
 export const DEMUCS_MODEL = "ryan5453/demucs" as const;
@@ -87,8 +89,13 @@ function pickUrl(
 export async function separateStems(opts: {
   songPath: string;
   outDir: string;
+  preferLocal?: boolean;
   onLog?: (msg: string) => void;
 }): Promise<StemResult> {
+  if (opts.preferLocal) {
+    return separateStemsLocal(opts);
+  }
+
   opts.onLog?.("Εκκίνηση Demucs στο Replicate…");
 
   // Match live ryan5453/demucs OpenAPI schema (no stem/shifts fields).

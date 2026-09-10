@@ -2,8 +2,8 @@
 
 Voice-conversion cover studio for Greek musicians.
 
-**EL:** Pipeline cover με πραγματικά Replicate APIs — όχι Suno / text-to-music.
-**EN:** Song → isolate vocals → convert to your cloned voice → remix with instrumental → download.
+**EL:** Pipeline cover με τοπική AI (CPU/AMD) ή Replicate — όχι Suno / text-to-music.
+**EN:** Song → isolate vocals → convert to your cloned voice → remix with instrumental → download. Prefer local FastAPI on Windows.
 
 ---
 
@@ -30,23 +30,33 @@ No auth, payments, or social login in v1. No celebrity voice packs. No YouTube s
 
 Quality for singing depends heavily on **clean, dry vocals**. FreeVC is speech-oriented zero-shot VC — results on singing vary. For stronger singing SVC, train/provide your own RVC model URL.
 
-### Setup
+### Setup (hybrid: local AI preferred)
 
 ```bash
 cd foni-mou
 cp .env.example .env.local
-# edit .env.local → REPLICATE_API_TOKEN=r8_...
+# LOCAL_AI_URL=http://127.0.0.1:8765
+# AI_PROVIDER=auto   # local if healthy, else Replicate
+# optional cloud: REPLICATE_API_TOKEN=r8_...
 npm install
-npm run dev
+
+# Terminal A — Local AI (Windows: local-ai\\start.bat)
+npm run local-ai
+
+# Terminal B — Next.js
+npm run dev:local
 ```
 
-Open http://localhost:3000
+Open http://localhost:3000 — Settings shows Local AI online/offline.
 
-Requires `ffmpeg` / `ffprobe` on PATH (defaults to `/usr/bin/ffmpeg`).
+Requires `ffmpeg` / `ffprobe` on PATH (override with `FFMPEG_PATH` / `FFPROBE_PATH`).
+See `local-ai/README.md` for AMD/CPU torch install (no CUDA).
 
 ### Scripts
 
-- `npm run dev` — development server
+- `npm run dev` — Next.js only
+- `npm run local-ai` — FastAPI on 127.0.0.1:8765
+- `npm run dev:local` — Next.js with reminder to start Local AI
 - `npm run build` — production build
 - `npm start` — start production server
 - `npm run lint` — ESLint
@@ -74,10 +84,11 @@ Uploading reference samples does **not** train a local model. There is no “tra
 
 ### Ρύθμιση
 
-1. Token από https://replicate.com/account/api-tokens
-2. `cp .env.example .env.local` και συμπληρώστε `REPLICATE_API_TOKEN`
-3. `npm install && npm run dev`
-4. Χωρίς token εμφανίζεται οθόνη ρύθμισης — **δεν** παράγονται ψεύτικοι ήχοι
+1. Προτιμώμενα: `local-ai\start.bat` (Windows) — τοπική AI χωρίς cloud
+2. `cp .env.example .env.local` → `LOCAL_AI_URL` + `AI_PROVIDER=auto`
+3. Προαιρετικά token από https://replicate.com/account/api-tokens για cloud fallback
+4. `npm install && npm run dev:local`
+5. Χωρίς τοπική AI και χωρίς token — **δεν** παράγονται ψεύτικοι ήχοι
 
 ### Συμβουλές ποιότητας
 
