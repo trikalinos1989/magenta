@@ -1,6 +1,7 @@
 import { execFile } from "child_process";
 import { promisify } from "util";
 import path from "path";
+import { ffmpegBin, ffprobeBin } from "@/lib/audio/binaries";
 
 const execFileAsync = promisify(execFile);
 
@@ -57,7 +58,7 @@ async function ffprobe(filePath: string): Promise<{
   channels?: number;
 }> {
   const { stdout } = await execFileAsync(
-    "ffprobe",
+    ffprobeBin(),
     [
       "-v",
       "error",
@@ -88,7 +89,7 @@ async function measureVolumes(filePath: string): Promise<{
 }> {
   try {
     const { stderr } = await execFileAsync(
-      "ffmpeg",
+      ffmpegBin(),
       ["-i", filePath, "-af", "volumedetect", "-f", "null", "-"],
       { timeout: 120_000 }
     );

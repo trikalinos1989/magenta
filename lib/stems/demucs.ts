@@ -2,6 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import { getReplicate } from "@/lib/replicate-client";
 import { downloadToFile, openReadStream } from "@/lib/storage";
+import { ffmpegBin } from "@/lib/audio/binaries";
 
 /**
  * Vocal separation via Replicate Demucs (ryan5453/demucs).
@@ -154,7 +155,7 @@ export async function separateStems(opts: {
       const labels = tmpPaths.map((_, i) => `[${i}:a]`).join("");
       const filter = `${labels}amix=inputs=${tmpPaths.length}:duration=longest:normalize=0[out]`;
       await execFileAsync(
-        process.env.FFMPEG_PATH || "/usr/bin/ffmpeg",
+        ffmpegBin(),
         ["-y", ...inputs, "-filter_complex", filter, "-map", "[out]", outInst],
         { timeout: 300_000 }
       );

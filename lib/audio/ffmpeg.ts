@@ -1,13 +1,13 @@
 import { execFile } from "child_process";
 import { promisify } from "util";
 import path from "path";
+import { ffmpegBin } from "@/lib/audio/binaries";
 
 const execFileAsync = promisify(execFile);
-const FFMPEG = process.env.FFMPEG_PATH || "/usr/bin/ffmpeg";
 
 async function runFfmpeg(args: string[]): Promise<void> {
   try {
-    await execFileAsync(FFMPEG, ["-y", ...args], {
+    await execFileAsync(ffmpegBin(), ["-y", ...args], {
       timeout: 10 * 60_000,
       maxBuffer: 20 * 1024 * 1024,
     });

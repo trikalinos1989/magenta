@@ -1,6 +1,7 @@
 import path from "path";
 import { getReplicate } from "@/lib/replicate-client";
 import { downloadToFile, openReadStream } from "@/lib/storage";
+import { ffmpegBin } from "@/lib/audio/binaries";
 
 /**
  * Voice conversion provider abstraction.
@@ -208,7 +209,7 @@ export async function applyPitchShift(
   // rubberband if available, else asetrate+aresample approximation
   try {
     await execFileAsync(
-      process.env.FFMPEG_PATH || "/usr/bin/ffmpeg",
+      ffmpegBin(),
       [
         "-y",
         "-i",
@@ -222,7 +223,7 @@ export async function applyPitchShift(
     return outputPath;
   } catch {
     await execFileAsync(
-      process.env.FFMPEG_PATH || "/usr/bin/ffmpeg",
+      ffmpegBin(),
       [
         "-y",
         "-i",
