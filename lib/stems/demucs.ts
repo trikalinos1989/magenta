@@ -1,6 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
-import { getReplicate } from "@/lib/replicate-client";
+import { runReplicate } from "@/lib/replicate-client";
 import { downloadToFile, openReadStream } from "@/lib/storage";
 import { ffmpegBin } from "@/lib/audio/binaries";
 
@@ -89,7 +89,6 @@ export async function separateStems(opts: {
   outDir: string;
   onLog?: (msg: string) => void;
 }): Promise<StemResult> {
-  const replicate = getReplicate();
   opts.onLog?.("Εκκίνηση Demucs στο Replicate…");
 
   const input = {
@@ -102,14 +101,18 @@ export async function separateStems(opts: {
 
   let output: unknown;
   try {
-    output = await replicate.run(
+    output = await runReplicate(
       `${DEMUCS_MODEL}:${DEMUCS_VERSION}` as `${string}/${string}:${string}`,
       { input }
     );
-  } catch {
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/429|Too Many Requests|throttled|rate limit|περιορίσε/i.test(msg)) {
+      throw err;
+    }
     // Fallback to latest model ref without pin
     opts.onLog?.("Επανάληψη χωρίς pin έκδοσης…");
-    output = await replicate.run(DEMUCS_MODEL as `${string}/${string}`, {
+    output = await runReplicate(DEMUCS_MODEL as `${string}/${string}`, {
       input,
     });
   }

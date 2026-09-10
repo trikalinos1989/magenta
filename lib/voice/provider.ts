@@ -1,5 +1,5 @@
 import path from "path";
-import { getReplicate } from "@/lib/replicate-client";
+import { runReplicate } from "@/lib/replicate-client";
 import { downloadToFile, openReadStream } from "@/lib/storage";
 import { ffmpegBin } from "@/lib/audio/binaries";
 
@@ -83,7 +83,6 @@ function extractAudioUrl(output: unknown): string {
 async function runFreeVc(
   input: VoiceConversionInput
 ): Promise<VoiceConversionResult> {
-  const replicate = getReplicate();
   input.onLog?.(
     "Zero-shot μετατροπή με FreeVC (reference audio)…"
   );
@@ -98,13 +97,17 @@ async function runFreeVc(
 
   let output: unknown;
   try {
-    output = await replicate.run(
+    output = await runReplicate(
       `${FREEVC_MODEL}:${FREEVC_VERSION}` as `${string}/${string}:${string}`,
       { input: payload }
     );
-  } catch {
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/429|Too Many Requests|throttled|rate limit|περιορίσε/i.test(msg)) {
+      throw err;
+    }
     input.onLog?.("Επανάληψη FreeVC χωρίς pin έκδοσης…");
-    output = await replicate.run(FREEVC_MODEL as `${string}/${string}`, {
+    output = await runReplicate(FREEVC_MODEL as `${string}/${string}`, {
       input: payload,
     });
   }
@@ -141,7 +144,6 @@ async function runCustomRvc(
   if (!input.customRvcModelUrl?.trim()) {
     throw new Error("Απαιτείται URL για custom RVC μοντέλο.");
   }
-  const replicate = getReplicate();
   input.onLog?.(
     "Fallback: zsxkib/realistic-voice-cloning με custom RVC model…"
   );
@@ -170,13 +172,17 @@ async function runCustomRvc(
 
   let output: unknown;
   try {
-    output = await replicate.run(
+    output = await runReplicate(
       `${RVC_MODEL}:${RVC_VERSION}` as `${string}/${string}:${string}`,
       { input: payload }
     );
-  } catch {
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/429|Too Many Requests|throttled|rate limit|περιορίσε/i.test(msg)) {
+      throw err;
+    }
     input.onLog?.("Επανάληψη RVC χωρίς pin έκδοσης…");
-    output = await replicate.run(RVC_MODEL as `${string}/${string}`, {
+    output = await runReplicate(RVC_MODEL as `${string}/${string}`, {
       input: payload,
     });
   }
